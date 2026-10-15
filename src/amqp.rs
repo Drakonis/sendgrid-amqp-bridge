@@ -136,7 +136,11 @@ where
 
     for message in stream.into_iter() {
         let (channel, message) = message?;
-        if message_handler.clone().handle(&message, &logger) {
+        // The SendGrid client blocks and drops its own runtime, which tokio
+        // forbids on an async thread.
+        let handled =
+            tokio::task::block_in_place(|| message_handler.clone().handle(&message, &logger));
+        if handled {
             channel
                 .basic_ack(message.delivery_tag, BasicAckOptions { multiple: false })
                 .await?;
